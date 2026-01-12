@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sauvetage FortiSIEM - Oumar Ali Mahamat Guedi</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+
+</head>
+
+<body>
+    <canvas id="matrix-canvas"></canvas>
+
+    <div id="header-placeholder"></div>
+
+    <section class="project-details" style="padding-top: 120px;">
+        <div class="container">
+            <div class="breadcrumb">
+                <a href="index.html">← Retour au portfolio</a>
+            </div>
+
+            <!-- TITRE PRINCIPAL -->
+            <h1 class="section-title" style="text-align: left; margin-bottom: 1rem;">
+                Chronique d'un Samedi au Data Center : Le Hack du FortiSIEM
+            </h1>
+            <!-- SOUS-TITRE / METALIGNE -->
+            <p style="color: var(--secondary); font-size: 1.2rem; margin-bottom: 3rem;">
+                Par Oumar Ali Guedi – Retour d'expérience "War Story"
+            </p>
+
+            <!-- IMAGE DE COUVERTURE -->
+            <img src="assets/img/blog/linux_terminal_boot.png" alt="Édition du GRUB FortiSIEM" class="project-img">
+
+            <div class="article-content">
+
+                <!-- INTRODUCTION -->
+                <h3>🚀 Introduction : Le "Oups" Critique</h3>
+                <p>
+                    On connait tous cet adage en informatique : <em>"Le problème se situe souvent entre la chaise et le
+                        clavier."</em> Ce week-end, j'en ai eu la preuve flagrante.
+                </p>
+                <p>
+                    Je travaille actuellement sur une refonte majeure d'infrastructure réseaux (plus d'une centaine
+                    d'équipements). Arrivé devant la pièce maîtresse, un <strong>FortiSIEM 2200G physique</strong>, le
+                    trou de mémoire : impossible de retrouver le mot de passe root. Pas de snapshot VM possible ici,
+                    c'est du "Bare Metal". J'ai donc dû sacrifier mon samedi pour une opération "Incursion Physique".
+                </p>
+
+                <div class="warning-box">
+                    <strong>⚠️ Avertissement :</strong> La procédure ci-dessous implique la modification des paramètres
+                    de démarrage (GRUB). Elle doit être effectuée uniquement sur du matériel dont vous êtes le
+                    propriétaire ou l'administrateur légitime. Une mauvaise manipulation peut empêcher le système de
+                    démarrer.
+                </div>
+
+                <!-- SECTION 1 -->
+                <h3>🏴‍☠️ 1. L'Interception du Démarrage (GRUB)</h3>
+                <p>
+                    La première étape consiste à interrompre le chargement standard de l'OS (Rocky Linux v7.x) pour nous
+                    donner un accès shell avant que les restrictions de sécurité ne s'appliquent.
+                </p>
+                <p>
+                    Au démarrage du serveur, il faut être rapide et appuyer sur la touche <strong>'e'</strong> dans le
+                    menu de boot. Cela ouvre l'éditeur GRUB.
+                </p>
+                <p>
+                    L'objectif est de trouver la ligne commençant par <code>linux</code> (ou <code>linux16</code>) et
+                    d'injecter notre porte dérobée.
+                </p>
+
+                <!-- BLOC DE CODE GRUB -->
+                <div class="code-block" data-lang="GRUB Configuration">
+                    <span class="code-comment"># Trouver la ligne linux et ajouter à la fin :</span><br>
+                    <span class="code-line">linux ... console=ttyS1 ... <span class="code-command">rd.break
+                            enforcing=0</span></span>
+                    <br>
+                    <span class="code-comment"># Astuce : Si vous êtes sur écran VGA, retirez "console=ttyS1" pour
+                        éviter l'écran noir !</span>
+                </div>
+
+                <p>Une fois modifié, on lance le boot avec <strong>Ctrl + X</strong>.</p>
+
+                <!-- SECTION 2 -->
+                <h3>💻 2. Le Shell d'Urgence et le Montage</h3>
+                <p>
+                    Le système démarre et s'arrête brutalement sur un shell minimaliste appelé <code>switch_root</code>.
+                    À ce stade, nous sommes root, mais le disque dur est monté en <strong>Lecture Seule</strong>
+                    (Read-Only). Impossible de changer le mot de passe tel quel.
+                </p>
+                <p>Voici la séquence de commandes pour reprendre la main :</p>
+
+                <!-- BLOC DE CODE SHELL -->
+                <div class="code-block" data-lang="Bash">
+                    <span class="code-comment"># 1. Remonter le système de fichiers en Lecture/Écriture</span><br>
+                    <span class="code-command">mount -o rw,remount /sysroot</span><br><br>
+
+                    <span class="code-comment"># 2. Changer la racine pour entrer dans le "vrai" système</span><br>
+                    <span class="code-command">chroot /sysroot</span>
+                </div>
+
+                <!-- SECTION 3 -->
+                <h3>🛡️ 3. La Leçon de Sécurité (Même le Samedi)</h3>
+                <p>
+                    C'est ici que l'anecdote devient amusante. Dans la précipitation pour débloquer la situation, j'ai
+                    tenté de définir un mot de passe "temporaire" un peu trop simple...
+                </p>
+                <p>
+                    Le FortiSIEM m'a immédiatement rappelé à l'ordre. Même en mode récupération d'urgence, les
+                    politiques de sécurité PAM sont actives !
+                </p>
+
+                <div class="code-block" data-lang="Console Output">
+                    <span class="code-command">passwd root</span><br>
+                    <span class="code-line">Changing password for user root.</span><br>
+                    <span class="code-line" style="color: #ff5555;">BAD PASSWORD: The password contains less than 1
+                        uppercase letter</span>
+                </div>
+
+                <p>
+                    Il a fallu que je respecte la complexité (Majuscules + Chiffres + Caractères spéciaux) pour que le
+                    système accepte enfin mon nouveau sésame.
+                </p>
+
+                <!-- SECTION 4 -->
+                <h3>✅ 4. La Libération</h3>
+                <p>
+                    Une fois le token d'authentification mis à jour, il reste une étape cruciale si SELinux est activé
+                    (ce qui est le cas ici) : forcer le réétiquetage des fichiers au prochain démarrage.
+                </p>
+
+                <div class="code-block" data-lang="Bash">
+                    <span class="code-command">touch /.autorelabel</span><br>
+                    <span class="code-command">exit</span><br>
+                    <span class="code-command">reboot -f</span>
+                </div>
+
+                <p>
+                    Le redémarrage est un peu plus long que d'habitude (le temps que SELinux fasse son travail), mais le
+                    résultat est là, l'accès Root est rétabli.
+                </p>
+
+                <!-- CONCLUSION -->
+                <h3>📝 Conclusion</h3>
+                <p>
+                    Cette mésaventure m'a rappelé deux fondamentaux de notre métier :
+                </p>
+                <ul>
+                    <li><strong>La Documentation est reine :</strong> Un gestionnaire de mots de passe n'est pas une
+                        option, c'est une obligation vitale, même pour les configurations temporaires.</li>
+                    <li><strong>Linux est le socle :</strong> Peu importe la sophistication des outils Cyber (SIEM, EDR,
+                        SOAR), en dessous, ça reste souvent du Linux. Maîtriser le GRUB et le Shell est une compétence
+                        de survie indispensable pour tout Admin Sys ou Expert Cyber.</li>
+                </ul>
+                <p>
+                    Le FortiSIEM est désormais configuré et sécurisé. Quant à moi, j'ai bien mérité mon café ! ☕
+                </p>
+
+            </div>
+
+            <div class="cta-buttons" style="margin-top: 3rem; justify-content: center;">
+                <a href="index.html#contact" class="btn">Discuter de ce projet</a>
+                <a href="index.html#portfolio" class="btn btn-secondary">Voir d'autres projets</a>
+            </div>
+        </div>
+    </section>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="assets/js/components.js"></script>
+    <script src="assets/js/main.js"></script>
+</body>
+
+</html>

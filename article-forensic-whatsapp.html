@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forensic WhatsApp : Analyse Avancée - Oumar Ali Mahamat Guedi</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+
+</head>
+
+<body>
+    <canvas id="matrix-canvas"></canvas>
+
+    <div id="header-placeholder"></div>
+
+    <section class="project-details" style="padding-top: 120px;">
+        <div class="container">
+            <div class="breadcrumb">
+                <a href="index.html">← Retour au portfolio</a>
+            </div>
+
+            <h1 class="section-title" style="text-align: left; margin-bottom: 1rem;">
+                Cas Pratique Forensic : L'illusion de la suppression sur WhatsApp (Android Root)
+            </h1>
+            <p style="color: var(--secondary); font-size: 1.2rem; margin-bottom: 3rem;">
+                Par Oumar Ali Mahamat Guedi | Expert Forensique & Cybersécurité
+            </p>
+
+            <img src="assets/img/blog/cover_forensic.jpg" alt="Investigation Numérique Mobile" class="project-img">
+
+            <div class="article-content">
+
+                <h3>🚀 Introduction : Le mythe de la donnée effacée</h3>
+                <p>
+                    En cybersécurité, nous répétons souvent : "Ce qui est sur Internet reste sur Internet". Mais qu'en
+                    est-il de ce qui est sur votre téléphone ? Une croyance tenace persiste chez les utilisateurs : la
+                    fonction "Supprimer pour moi" ou "Supprimer pour tous" de WhatsApp effacerait définitivement les
+                    preuves. <strong>C'est faux.</strong>
+                </p>
+                <p>
+                    Dans le cadre de mes recherches en forensic mobile, j'ai récemment conduit une analyse approfondie
+                    de la dernière version de WhatsApp (Décembre 2025) sur un environnement Android 16. L'objectif était
+                    de confronter la théorie à la réalité d'un accès privilégié (Root).
+                </p>
+                <p>
+                    Au travers de l'<strong>"Opération Scorpion"</strong>, une simulation d'enquête menée en
+                    laboratoire, cet article démontre comment un expert forensique peut exhumer un message sensible
+                    ("CODE_BUNKER") supprimé par un suspect, en analysant les traces résiduelles des bases de données
+                    SQLite.
+                </p>
+                <p>
+                    <em>Note technique : Pour ceux qui souhaitent reproduire ce laboratoire et apprendre à rooter leur
+                        propre téléphone pour l'analyse, je recommande de suivre <a
+                            href="https://youtu.be/pcwRWBHFAlg?si=MAEi9nQsyKiqM8X0" target="_blank"
+                            style="color: var(--primary);">cette excellente vidéo</a> qui détaille la procédure.</em>
+                </p>
+
+                <div class="warning-box">
+                    <strong>⚠️ Avertissement :</strong> Ce tutoriel est destiné à des fins éducatives et
+                    professionnelles (Forensic, Pentest autorisé). L'interception de communications privées sans
+                    consentement est illégale.
+                </div>
+
+                <h3>🕵️‍♂️ 1. La Scène de Crime (Simulation)</h3>
+                <p>
+                    Pour cet audit, j'ai simulé une conversation criminelle contenant un code sensible :
+                    <strong>"CODE_BUNKER_77"</strong>. Quelques secondes après l'envoi, le suspect supprime le message
+                    via l'option "Supprimer pour moi".
+                </p>
+                <p>
+                    Sur l'interface utilisateur, la preuve a disparu, laissant penser à une impasse pour l'enquêteur non
+                    spécialisé.
+                </p>
+
+                <img src="assets/img/blog/capture_ecran_0.png" alt="Vue utilisateur WhatsApp message supprimé"
+                    class="project-img">
+                <center>
+                    <p class="img-caption">Figure 1 : La conversation semble anodine. Le message contenant le code
+                        sensible a été supprimé.</p>
+                </center>
+
+                <h3>⚙️ 2. L'Acquisition "Live" (La stratégie Root)</h3>
+                <p>
+                    Sur un téléphone non rooté, nous sommes forcés d'extraire des sauvegardes chiffrées (.crypt16) et de
+                    tenter de casser le chiffrement. Mais avec le Root, la donne change. WhatsApp doit lire ses messages
+                    en clair pour fonctionner. Le fichier de base de données active se trouve dans la partition système
+                    protégée.
+                </p>
+                <p>
+                    Pour cette investigation, une élévation de privilèges a été nécessaire pour contourner la Sandbox
+                    d'Android et accéder au dossier <code>/data/data/</code>.
+                </p>
+
+                <div class="code-block" data-lang="Bash">
+                    <span class="code-command">adb shell</span><br>
+                    <span class="code-command">su</span><br>
+                    <span class="code-comment"># Le prompt passe de $ à # (indiquant l'accès Root
+                        SuperUtilisateur)</span>
+                </div>
+
+                <img src="assets/img/blog/capture_ecran_2.png" alt="Terminal ADB Root" class="project-img">
+                <center>
+                    <p class="img-caption">Figure 2 : Obtention des droits Root (su) via le pont ADB.</p>
+                </center>
+
+                <p>
+                    Une fois l'accès obtenu, l'erreur classique est de ne copier que le fichier principal
+                    <code>msgstore.db</code>. Pour une analyse forensique complète, il est impératif de sécuriser le
+                    <strong>Trio SQLite</strong> pour garantir l'intégrité des données volatiles.
+                </p>
+
+                <div class="code-block" data-lang="Bash">
+                    <span class="code-command">mkdir -p /sdcard/EVIDENCE_SCORPION</span><br>
+                    <span class="code-comment"># Copie de la base principale ET des journaux WAL (Crucial !)</span><br>
+                    <span class="code-command">cp /data/data/com.whatsapp/databases/msgstore.db
+                        /sdcard/EVIDENCE_SCORPION/</span><br>
+                    <span class="code-command">cp /data/data/com.whatsapp/databases/msgstore.db-wal
+                        /sdcard/EVIDENCE_SCORPION/</span><br>
+                    <span class="code-command">cp /data/data/com.whatsapp/databases/msgstore.db-shm
+                        /sdcard/EVIDENCE_SCORPION/</span><br>
+                    <span class="code-comment"># Vérification de la taille du fichier WAL</span><br>
+                    <span class="code-command">ls -l /sdcard/EVIDENCE_SCORPION/</span>
+                </div>
+
+                <img src="assets/img/blog/capture_ecran_3.png" alt="Listing des fichiers extraits" class="project-img">
+                <center>
+                    <p class="img-caption">Figure 3 : Sécurisation des preuves. Notez la taille du fichier
+                        msgstore.db-wal (506 Ko).</p>
+                </center>
+
+                <h3>🔍 3. L'Analyse Logique et le "Message Fantôme"</h3>
+                <p>
+                    En ouvrant le fichier principal <code>msgstore.db</code> avec un logiciel d'analyse SQL standard
+                    (comme DB Browser), les résultats semblent confirmer la suppression.
+                </p>
+                <p>
+                    La requête SQL exécutée sur la table <code>message</code> montre bien l'horodatage de l'échange,
+                    mais le contenu du message cible est marqué comme <code>NULL</code> (vide). Le moteur SQL obéit à
+                    l'instruction de suppression enregistrée dans la base.
+                </p>
+
+                <img src="assets/img/blog/capture_ecran_4.png" alt="DB Browser résultat NULL" class="project-img">
+                <center>
+                    <p class="img-caption">Figure 4 : La requête SQL montre une entrée dont le contenu est NULL. Pour un
+                        enquêteur standard, la preuve n'existe plus.</p>
+                </center>
+
+                <h3>💡 4. La Révélation (Forensic Carving)</h3>
+                <p>
+                    C'est ici que réside la valeur ajoutée de l'expertise. SQLite utilise un mécanisme de journalisation
+                    appelé <strong>Write-Ahead Log (WAL)</strong>. Les nouvelles données sont d'abord écrites dans ce
+                    fichier temporaire avant d'être fusionnées.
+                </p>
+                <p>
+                    Tant que cette fusion (appelée "Checkpoint") n'a pas eu lieu, le texte original persiste
+                    physiquement sur le disque. En effectuant une <strong>analyse hexadécimale brute</strong> (Raw Hex
+                    Dump) du fichier <code>msgstore.db-wal</code>, nous contournons la logique de base de données.
+                </p>
+                <p><strong>Le résultat est sans appel : le message supprimé est retrouvé en clair.</strong></p>
+
+                <img src="assets/img/blog/capture_ecran_5.png" alt="Editeur Hexadécimal HxD" class="project-img">
+                <center>
+                    <p class="img-caption">Figure 5 : L'analyse bas niveau du fichier WAL révèle la persistance des
+                        données. Le message "CODE_BUNKER" est retrouvé en clair.</p>
+                </center>
+
+                <h3>🌐 5. Exploitation Avancée des Métadonnées</h3>
+                <p>
+                    L'analyse forensique ne s'arrête pas à la récupération du texte. L'examen structurel des 266 tables
+                    de la base de données a permis d'extraire des éléments de contexte critiques qui permettent de lier
+                    les faits à des individus et des lieux précis.
+                </p>
+
+                <h4>A. Attribution et Profilage (Table wa_contacts)</h4>
+                <p>
+                    Lier un identifiant technique à une personne réelle est crucial. En analysant la table
+                    <code>wa_contacts</code>, nous avons pu faire le lien entre le JID (Jabber ID) interne et le numéro
+                    de téléphone réel.
+                </p>
+                <p>
+                    Comme le montre la capture ci-dessous, le JID <code>237658...</code> est formellement identifié. De
+                    plus, nous avons extrait le statut personnalisé du suspect : <em>"L3 h4ck3r 13 plus n00b du
+                        Tch4d"</em>, un élément précieux pour le profilage psychologique.
+                </p>
+                <img src="assets/img/blog/capture_ecran_6.png" alt="Table wa_contacts" class="project-img">
+                <center>
+                    <p class="img-caption">Figure 6 : Désanonymisation du contact et récupération du statut via la table
+                        wa_contacts.</p>
+                </center>
+
+                <h4>B. La Persistance des "Vue Unique" (ViewOnce)</h4>
+                <p>
+                    Contrairement à la promesse de confidentialité totale, les médias éphémères laissent des traces
+                    durables. L'analyse de la table <code>message_media</code> révèle que WhatsApp conserve les
+                    métadonnées des fichiers même après leur suppression de l'interface.
+                </p>
+                <p>
+                    Nous avons identifié des chemins de fichiers explicites contenant <code>/ViewOnce/</code> (voir
+                    ligne 1 et 2 de la capture). Les métadonnées incluent la taille (794 Ko), le type MIME (video/mp4)
+                    et la date d'envoi, prouvant l'existence et la nature de l'échange multimédia.
+                </p>
+                <img src="assets/img/blog/capture_ecran_7.png" alt="Table message_media view once" class="project-img">
+                <center>
+                    <p class="img-caption">Figure 7 : Preuves de médias "Vue Unique" (ViewOnce) persistantes dans la
+                        base de données.</p>
+                </center>
+
+                <h4>C. Géolocalisation Précise (Table message_location)</h4>
+                <p>
+                    L'élément le plus incriminant se trouve dans la table <code>message_location</code>. Si le suspect a
+                    partagé sa position (même brièvement), les coordonnées GPS brutes sont stockées.
+                </p>
+                <p>
+                    Dans ce laboratoire, nous avons extrait les coordonnées suivantes : <strong>Latitude 12.1522594,
+                        Longitude 15.0483844</strong>. Ces données confirment la présence du suspect dans une zone
+                    précise de N'Djamena au moment des faits.
+                </p>
+                <img src="assets/img/blog/capture_ecran_8.png" alt="Table message_location GPS" class="project-img">
+                <center>
+                    <p class="img-caption">Figure 8 : Extraction de coordonnées GPS confirmant la localisation à
+                        N'Djamena.</p>
+                </center>
+
+                <h3>📝 Conclusion</h3>
+                <p>
+                    Cette démonstration technique souligne deux réalités fondamentales pour la sécurité nationale et la
+                    justice :
+                </p>
+                <p>
+                    Premièrement, <strong>la suppression est une illusion numérique</strong>. En informatique
+                    forensique, "supprimer" signifie souvent "cacher" ou "marquer pour écrasement futur", et non
+                    "détruire instantanément".
+                </p>
+                <p>
+                    Deuxièmement, la puissance de l'accès Root est indéniable. Une fois qu'un expert a un accès physique
+                    et Root à un terminal, le chiffrement de l'application (au repos) ne suffit plus à protéger les
+                    secrets. L'expertise forensique mobile n'est plus une option, c'est une nécessité stratégique.
+                </p>
+
+            </div>
+
+            <div class="cta-buttons" style="margin-top: 3rem; justify-content: center;">
+                <a href="index.html#contact" class="btn">Besoin d'une expertise ?</a>
+                <a href="index.html#portfolio" class="btn btn-secondary">Voir d'autres labs</a>
+            </div>
+        </div>
+    </section>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="assets/js/components.js"></script>
+    <script src="assets/js/main.js" defer></script>
+</body>
+
+</html>
